@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Veracode SIDE Recorder</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <h1>Veracode SIDE Recorder</h1>
+        <p>
+          Records only a Veracode-safe Selenium IDE subset for SIDE export.
+        </p>
+      </header>
+
+      <section class="panel">
+        <div class="button-row">
+          <button id="toggleRecording" class="primary">Start Recording</button>
+          <button id="newSession">New Session</button>
+        </div>
+        <div class="stats" id="stats"></div>
+      </section>
+
+      <section class="panel">
+        <label>
+          Project Name
+          <input id="projectName" type="text" maxlength="120" />
+        </label>
+        <label>
+          Test Name
+          <input id="testName" type="text" maxlength="120" />
+        </label>
+        <label>
+          Base URL
+          <input id="baseUrl" type="url" />
+        </label>
+      </section>
+
+      <section class="panel">
+        <div class="button-row">
+          <button id="exportSide" class="primary">Export .side</button>
+          <button id="exportJson">Export Recording JSON</button>
+        </div>
+        <p class="note">
+          Automatic recording emits:
+          <span id="autoCommands"></span>
+        </p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">Recent Commands</div>
+        <div class="command-list" id="commandList"></div>
+      </section>
+    </main>
+
+    <script src="shared/veracode-side.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

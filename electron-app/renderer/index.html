@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Veracode SIDE Recorder</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <section class="hero card">
+          <p class="eyebrow">Veracode-safe Recorder</p>
+          <h1>SIDE capture for Dynamic Analysis</h1>
+          <p>
+            Record in the embedded browser or import a Chrome recording, then
+            export a `.side` file that keeps to Veracode-supported commands.
+          </p>
+        </section>
+
+        <section class="card form-card">
+          <div class="field-grid">
+            <label>
+              Project Name
+              <input id="projectName" type="text" maxlength="120" />
+            </label>
+            <label>
+              Test Name
+              <input id="testName" type="text" maxlength="120" />
+            </label>
+            <label>
+              Base URL
+              <input id="baseUrl" type="url" />
+            </label>
+          </div>
+        </section>
+
+        <section class="card toolbar-card">
+          <div class="toolbar">
+            <button id="startRecording" class="primary">Resume Recording</button>
+            <button id="stopRecording">Pause Recording</button>
+            <button id="newRecording">New</button>
+            <button id="importFile">Import</button>
+            <button id="exportSide">Save .side</button>
+            <button id="exportJson">Save JSON</button>
+          </div>
+          <p class="status" id="statusText"></p>
+        </section>
+
+        <section class="card editor-card">
+          <div class="editor-header">
+            <h2>Commands</h2>
+            <button id="addCommand">Add Supported Command</button>
+          </div>
+          <div class="command-table-wrap">
+            <table class="command-table">
+              <thead>
+                <tr>
+                  <th>Command</th>
+                  <th>Target</th>
+                  <th>Value</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="commandRows"></tbody>
+            </table>
+          </div>
+        </section>
+      </aside>
+
+      <main class="browser-panel">
+        <section class="browser-toolbar card">
+          <div class="address-bar">
+            <input id="addressInput" type="url" placeholder="https://example.com/login" />
+            <button id="goButton" class="primary">Open</button>
+          </div>
+          <p class="note">
+            Automatic capture in the app uses:
+            <span id="autoCommands"></span>
+          </p>
+        </section>
+
+        <section class="browser-frame card">
+          <webview
+            id="recorderView"
+            preload="../webview-preload.js"
+            src="about:blank"
+            allowpopups="false"
+          ></webview>
+        </section>
+      </main>
+    </div>
+
+    <script src="../shared/veracode-side.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

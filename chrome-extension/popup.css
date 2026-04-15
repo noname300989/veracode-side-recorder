@@ -1,0 +1,113 @@
+:root {
+  color-scheme: light;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  background: linear-gradient(180deg, #f6fbff 0%, #eef5fb 100%);
+  color: #16324f;
+}
+
+body {
+  margin: 0;
+  min-width: 380px;
+}
+
+.shell {
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.hero h1 {
+  margin: 0 0 6px;
+  font-size: 1.35rem;
+}
+
+.hero p,
+.note {
+  margin: 0;
+  color: #496680;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.panel {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #d7e3ef;
+  border-radius: 14px;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  box-shadow: 0 10px 30px rgba(22, 50, 79, 0.08);
+}
+
+.panel-title {
+  font-weight: 600;
+}
+
+.button-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  border: 1px solid #b7cade;
+  background: #f8fbff;
+  color: #16324f;
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+button.primary {
+  background: linear-gradient(135deg, #0057b8, #0089c4);
+  color: white;
+  border-color: transparent;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+input {
+  border: 1px solid #c6d5e4;
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: white;
+}
+
+.stats {
+  font-size: 0.9rem;
+  color: #36526d;
+}
+
+.command-list {
+  max-height: 220px;
+  overflow: auto;
+  display: grid;
+  gap: 8px;
+}
+
+.command {
+  border: 1px solid #d9e5f1;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #fbfdff;
+  font-size: 0.86rem;
+}
+
+.command strong {
+  display: inline-block;
+  min-width: 72px;
+}

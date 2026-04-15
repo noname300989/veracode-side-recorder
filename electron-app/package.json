@@ -1,0 +1,12 @@
+{
+  "name": "veracode-side-recorder",
+  "version": "1.0.0",
+  "description": "Electron recorder and editor for Veracode-safe Selenium IDE SIDE files.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^37.0.0"
+  }
+}

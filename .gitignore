@@ -1,0 +1,9 @@
+electron-app/node_modules/
+chrome-extension/node_modules/
+veracode-side-recorder-*.zip
+*.log
+.DS_Store
+.vscode/
+
+git-meta/
+
