@@ -120,7 +120,7 @@
       }
     }
 
-    ["data-testid", "data-test", "data-qa", "aria-label"].forEach(function (attributeName) {
+    ["data-testid", "data-test", "data-qa", "aria-label", "placeholder", "title", "alt"].forEach(function (attributeName) {
       if (hasUsefulAttribute(element, attributeName)) {
         var locator = "css=" + element.tagName.toLowerCase() + "[" + attributeName + "=\"" + element.getAttribute(attributeName).replace(/"/g, "\\\"") + "\"]";
         if (!targets.some(function (candidate) { return candidate[0] === locator; })) {

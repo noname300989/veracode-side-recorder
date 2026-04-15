@@ -109,7 +109,9 @@
   }
 
   function onBlur(event) {
-    scheduleTextCapture(event.target);
+    if (RecorderDom.isTextInput(event.target)) {
+      recordTextEntry(event.target);
+    }
   }
 
   function onInput(event) {
@@ -129,6 +131,10 @@
   }
 
   function onMouseDown(event) {
+    if (document.activeElement && RecorderDom.isTextInput(document.activeElement)) {
+      recordTextEntry(document.activeElement);
+    }
+    
     var clickable = RecorderDom.findClickableTarget(event.target);
     if (!clickable) {
       return;
@@ -196,6 +202,10 @@
   }
 
   function onClick(event) {
+    if (document.activeElement && RecorderDom.isTextInput(document.activeElement)) {
+      recordTextEntry(document.activeElement);
+    }
+
     var clickable = RecorderDom.findClickableTarget(event.target);
     if (!clickable) {
       return;
@@ -229,6 +239,10 @@
   }
 
   function onSubmit(event) {
+    if (document.activeElement && RecorderDom.isTextInput(document.activeElement)) {
+      recordTextEntry(document.activeElement);
+    }
+
     var form = event.target;
     flushFormState(form);
     var locator = RecorderDom.buildLocatorBundle(form);
