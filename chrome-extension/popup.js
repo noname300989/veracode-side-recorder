@@ -1,7 +1,8 @@
 var elements = {
   toggleRecording: document.getElementById("toggleRecording"),
   newSession: document.getElementById("newSession"),
-  exportSide: document.getElementById("exportSide"),
+  exportVeracodeSide: document.getElementById("exportVeracodeSide"),
+  exportSeleniumIdeSide: document.getElementById("exportSeleniumIdeSide"),
   exportJson: document.getElementById("exportJson"),
   projectName: document.getElementById("projectName"),
   testName: document.getElementById("testName"),
@@ -37,6 +38,9 @@ function escapeHtml(value) {
 function renderState(state) {
   var commands = state.session.commands || [];
   var summary = state.summary || VeracodeSide.summarize(state.session);
+  var exportIssues = VeracodeSide.collectExportIssues(state.session, {
+    waitMode: VeracodeSide.EXPORT_WAIT_MODE_VERACODE
+  });
 
   elements.toggleRecording.textContent = state.isRecording ? "Pause Recording" : "Resume Recording";
   elements.projectName.value = state.session.projectName || "";
@@ -45,7 +49,8 @@ function renderState(state) {
   elements.stats.textContent =
     summary.totalCommands +
     " commands recorded. " +
-    (state.isRecording ? "Auto recorder is live in the current tab." : "Recorder is paused.");
+    (state.isRecording ? "Auto recorder is live in the current tab." : "Recorder is paused.") +
+    (exportIssues.length ? " Veracode export check: " + exportIssues[0] : "");
 
   var recentCommands = commands.slice(-12).reverse();
   elements.commandList.innerHTML = recentCommands.length
@@ -113,13 +118,30 @@ elements.newSession.addEventListener("click", async function () {
   renderState(cleared);
 });
 
-elements.exportSide.addEventListener("click", async function () {
-  var file = await sendMessage({ type: "export", format: "side" });
+elements.exportVeracodeSide.addEventListener("click", async function () {
+  var file = await sendMessage({ type: "export", format: "side-veracode" });
+  if (file.error) {
+    elements.stats.textContent = file.error;
+    return;
+  }
+  downloadFile(file.filename, file.content, file.mimeType);
+});
+
+elements.exportSeleniumIdeSide.addEventListener("click", async function () {
+  var file = await sendMessage({ type: "export", format: "side-selenium-ide" });
+  if (file.error) {
+    elements.stats.textContent = file.error;
+    return;
+  }
   downloadFile(file.filename, file.content, file.mimeType);
 });
 
 elements.exportJson.addEventListener("click", async function () {
   var file = await sendMessage({ type: "export", format: "recording" });
+  if (file.error) {
+    elements.stats.textContent = file.error;
+    return;
+  }
   downloadFile(file.filename, file.content, file.mimeType);
 });
 

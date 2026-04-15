@@ -12,6 +12,7 @@ var state = {
     tabId: null,
     lastKnownUrl: "",
     pendingNavigation: false,
+    authVerificationPending: false,
     lastActionAt: 0,
     lastClickSignature: ""
   }
@@ -42,6 +43,7 @@ async function loadState() {
         tabId: null,
         lastKnownUrl: "",
         pendingNavigation: false,
+        authVerificationPending: false,
         lastActionAt: 0,
         lastClickSignature: ""
       },
@@ -110,7 +112,7 @@ function appendCommand(commandInput, options) {
     lastCommand.command === command.command &&
     lastCommand.target === command.target &&
     lastCommand.value === command.value &&
-    command.command === "waitForPageToLoad"
+    (command.command === "waitForPageToLoad" || command.command === "pause")
   ) {
     return false;
   } else {
@@ -145,8 +147,8 @@ function ensureOpenSequence(url) {
       targets: []
     });
     appendCommand({
-      command: "waitForPageToLoad",
-      target: VeracodeSide.DEFAULT_WAIT_TIMEOUT_MS,
+      command: "pause",
+      target: VeracodeSide.DEFAULT_PAUSE_MS,
       value: "",
       targets: []
     }, {
@@ -210,9 +212,52 @@ async function clearSession() {
   state.runtime.tabId = null;
   state.runtime.lastKnownUrl = "";
   state.runtime.pendingNavigation = false;
+  state.runtime.authVerificationPending = false;
   state.runtime.lastClickSignature = "";
   await persistState();
   return snapshotState();
+}
+
+function hasAuthField(commandMessage) {
+  var targetValues = [];
+  targetValues.push(String(commandMessage && commandMessage.target || "").toLowerCase());
+
+  if (Array.isArray(commandMessage && commandMessage.targets)) {
+    commandMessage.targets.forEach(function (candidate) {
+      if (Array.isArray(candidate) && candidate[0]) {
+        targetValues.push(String(candidate[0]).toLowerCase());
+      }
+    });
+  }
+
+  return targetValues.some(function (value) {
+    return /user|email|login|pass|password|otp|totp|captcha|code|pin/.test(value);
+  });
+}
+
+async function collectLoginVerification(tabId) {
+  try {
+    var response = await chrome.tabs.sendMessage(tabId, {
+      type: "collect-login-verification"
+    });
+
+    if (!response || !response.command) {
+      return false;
+    }
+
+    appendCommand({
+      command: response.command,
+      target: response.target,
+      targets: response.targets,
+      value: response.value
+    }, {
+      dedupeClicks: false
+    });
+
+    return true;
+  } catch (_error) {
+    return false;
+  }
 }
 
 function snapshotState() {
@@ -240,9 +285,15 @@ async function exportContent(format) {
   }
 
   return {
-    filename: "veracode-recording.side",
+    filename: format === "side-selenium-ide"
+      ? "veracode-recording-selenium-ide.side"
+      : "veracode-recording-veracode.side",
     mimeType: "application/json",
-    content: VeracodeSide.exportSideText(state.session)
+    content: VeracodeSide.exportSideText(state.session, {
+      waitMode: format === "side-selenium-ide"
+        ? VeracodeSide.EXPORT_WAIT_MODE_SELENIUM_IDE
+        : VeracodeSide.EXPORT_WAIT_MODE_VERACODE
+    })
   };
 }
 
@@ -258,14 +309,20 @@ chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
 
     if (state.runtime.pendingNavigation) {
       appendCommand({
-        command: "waitForPageToLoad",
-        target: VeracodeSide.DEFAULT_WAIT_TIMEOUT_MS,
+        command: "pause",
+        target: VeracodeSide.DEFAULT_PAUSE_MS,
         value: "",
         targets: []
       }, {
         dedupeClicks: false
       });
       state.runtime.pendingNavigation = false;
+      if (state.runtime.authVerificationPending) {
+        collectLoginVerification(tabId).then(function () {
+          state.runtime.authVerificationPending = false;
+          persistState();
+        });
+      }
     } else if (tab.url !== state.runtime.lastKnownUrl) {
       appendCommand({
         command: "open",
@@ -276,13 +333,19 @@ chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
         dedupeClicks: false
       });
       appendCommand({
-        command: "waitForPageToLoad",
-        target: VeracodeSide.DEFAULT_WAIT_TIMEOUT_MS,
+        command: "pause",
+        target: VeracodeSide.DEFAULT_PAUSE_MS,
         value: "",
         targets: []
       }, {
         dedupeClicks: false
       });
+      if (state.runtime.authVerificationPending) {
+        collectLoginVerification(tabId).then(function () {
+          state.runtime.authVerificationPending = false;
+          persistState();
+        });
+      }
     }
 
     state.runtime.lastKnownUrl = tab.url;
@@ -356,6 +419,10 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
 
           if (message.expectsNavigation) {
             state.runtime.pendingNavigation = true;
+          }
+
+          if (hasAuthField(message)) {
+            state.runtime.authVerificationPending = true;
           }
 
           await persistState();

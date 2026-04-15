@@ -84,6 +84,12 @@ function flushFormState(form) {
   });
 }
 
+function flushDocumentState() {
+  Array.prototype.forEach.call(document.querySelectorAll("input, textarea, select"), (element) => {
+    recordControlState(element);
+  });
+}
+
 function scheduleTextCapture(element) {
   if (!RecorderDom.isTextInput(element)) {
     return;
@@ -123,6 +129,8 @@ function onCut(event) {
 }
 
 function onMouseDown(event) {
+  flushDocumentState();
+
   const clickable = RecorderDom.findClickableTarget(event.target);
   if (!clickable) {
     return;
@@ -190,6 +198,10 @@ function onChange(event) {
 }
 
 function onClick(event) {
+  if (document.activeElement && RecorderDom.isTextInput(document.activeElement)) {
+    recordTextEntry(document.activeElement);
+  }
+
   const clickable = RecorderDom.findClickableTarget(event.target);
   if (!clickable) {
     return;
@@ -223,6 +235,10 @@ function onClick(event) {
 }
 
 function onSubmit(event) {
+  if (document.activeElement && RecorderDom.isTextInput(document.activeElement)) {
+    recordTextEntry(document.activeElement);
+  }
+
   const form = event.target;
   flushFormState(form);
   const locator = RecorderDom.buildLocatorBundle(form);
@@ -244,6 +260,10 @@ function onSubmit(event) {
   });
 }
 
+function onBeforeUnload() {
+  flushDocumentState();
+}
+
 ipcRenderer.on("recorder-control", (_event, message) => {
   if (message && message.type === "set-recording") {
     isRecording = !!message.enabled;
@@ -260,4 +280,5 @@ if (window.top === window.self && RecorderDom.isHtmlPage()) {
   document.addEventListener("change", onChange, true);
   document.addEventListener("click", onClick, true);
   document.addEventListener("submit", onSubmit, true);
+  window.addEventListener("beforeunload", onBeforeUnload, true);
 }

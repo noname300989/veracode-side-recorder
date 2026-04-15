@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  if (window.top !== window.self || !RecorderDom.isHtmlPage()) {
+  if (!RecorderDom.isHtmlPage()) {
     return;
   }
 
@@ -90,6 +90,12 @@
     });
   }
 
+  function flushDocumentState() {
+    Array.prototype.forEach.call(document.querySelectorAll("input, textarea, select"), function (element) {
+      recordControlState(element);
+    });
+  }
+
   function scheduleTextCapture(element) {
     if (!RecorderDom.isTextInput(element)) {
       return;
@@ -109,9 +115,7 @@
   }
 
   function onBlur(event) {
-    if (RecorderDom.isTextInput(event.target)) {
-      recordTextEntry(event.target);
-    }
+    scheduleTextCapture(event.target);
   }
 
   function onInput(event) {
@@ -131,10 +135,8 @@
   }
 
   function onMouseDown(event) {
-    if (document.activeElement && RecorderDom.isTextInput(document.activeElement)) {
-      recordTextEntry(document.activeElement);
-    }
-    
+    flushDocumentState();
+
     var clickable = RecorderDom.findClickableTarget(event.target);
     if (!clickable) {
       return;
@@ -162,6 +164,85 @@
       expectsNavigation: RecorderDom.anchorTriggersNavigation(clickable) || RecorderDom.isSubmitControl(clickable)
     });
   }
+
+  function onBeforeUnload() {
+    flushDocumentState();
+  }
+
+  function getVisibleTextCandidates() {
+    var pageText = document.body && document.body.innerText ? document.body.innerText : "";
+    return [
+      "Sign Off",
+      "Sign Out",
+      "Logout",
+      "Log Out",
+      "Welcome",
+      "My Account",
+      "Account Summary",
+      "Transfer Funds",
+      "View Account Summary"
+    ].filter(function (candidate) {
+      return pageText.indexOf(candidate) >= 0;
+    });
+  }
+
+  function getVisibleElementVerificationTarget() {
+    var selectors = [
+      "a[href*='logout']",
+      "a[href*='signoff']",
+      "a[href*='signout']",
+      "form[action*='logout']",
+      "[id*='logout']",
+      "[name*='logout']"
+    ];
+
+    for (var index = 0; index < selectors.length; index += 1) {
+      var element = document.querySelector(selectors[index]);
+      if (!element) {
+        continue;
+      }
+
+      var locator = RecorderDom.buildLocatorBundle(element);
+      if (locator) {
+        return locator;
+      }
+    }
+
+    return null;
+  }
+
+  chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
+    if (!message || message.type !== "collect-login-verification") {
+      return;
+    }
+
+    flushDocumentState();
+
+    var textCandidates = getVisibleTextCandidates();
+    if (textCandidates.length) {
+      sendResponse({
+        command: "verifyTextPresent",
+        target: textCandidates[0],
+        targets: [[textCandidates[0], "text"]],
+        value: ""
+      });
+      return true;
+    }
+
+    var locator = getVisibleElementVerificationTarget();
+    if (locator) {
+      sendResponse({
+        command: "waitForElementPresent",
+        target: locator.primary,
+        targets: locator.targets,
+        value: ""
+      });
+      return true;
+    }
+
+    sendResponse(null);
+    return true;
+  });
 
   function onChange(event) {
     var element = event.target;
@@ -273,4 +354,5 @@
   document.addEventListener("change", onChange, true);
   document.addEventListener("click", onClick, true);
   document.addEventListener("submit", onSubmit, true);
+  window.addEventListener("beforeunload", onBeforeUnload, true);
 })();

@@ -1,83 +1,75 @@
-# Veracode SIDE Recorder 🚀
+# Veracode SIDE Recorder
 
-A professional recording and editing suite designed to capture Selenium IDE (`.side`) flows specifically optimized for **Veracode Dynamic Analysis**.
+A recorder and editor for Selenium IDE (`.side`) login and crawl flows that stays inside Veracode-accepted Selenium commands.
 
 ## Overview
 
-This project provides two powerful ways to capture browser interactions and export them as Veracode-compliant `.side` files:
+This project includes two recorders:
 
-1.  **Chrome Extension**: A lightweight background recorder that captures interactions directly as you browse.
-2.  **Electron App**: A standalone desktop editor and recorder with an embedded browser, allowing for deep inspection and manual adjustment of your Selenium scripts.
+1. A Chrome extension that records directly while you browse.
+2. An Electron desktop app with an embedded browser recorder and editor.
 
----
+The shared export logic keeps the generated `.side` files aligned with Veracode's enhanced authentication and automation workflow guidance.
 
-## 🛡️ Focused Command Set
+## Supported Recording Subset
 
-To ensure high reliability in Dynamic Analysis, this recorder focuses on a strict subset of Selenium commands:
+The recorder is intentionally narrow and focuses on the commands we want for Veracode login and crawl scripts:
 
-| Command | Description |
-| :--- | :--- |
-| `open` | Opens a target URL. |
-| `click` | Records mouse clicks on elements. |
-| `type` | Captures keyboard input (optimized for login forms). |
-| `select` | Handles dropdown and list selections. |
-| `check` / `uncheck` | Manages checkboxes and radio buttons. |
-| `submit` | Explicitly captures form submissions. |
-| `waitForPageToLoad` | Ensures the engine waits for navigation to complete. |
+- `open`
+- `click`
+- `type`
+- `select`
+- `check`
+- `uncheck`
+- `submit`
+- `waitForPageToLoad`
+- `waitForElementPresent`
+- `verifyTextPresent`
+- `pause`
 
-*Note: The Electron editor limits commands to those currently supported by Veracode, preventing the accidental addition of unsupported Selenium IDE operations.*
+`waitForElementVisible` is not auto-generated. Veracode guidance mentions it as an example, but the current supported-command table does not list it, so the recorder uses `waitForElementPresent` or `verifyTextPresent` instead.
 
----
+## Export Modes
 
-## 🛠️ Getting Started
+Two `.side` export modes are available:
 
-### 🌐 Chrome Extension
+- `Veracode .side`: converts recorded internal wait steps into `waitForPageToLoad`. Use this for Veracode Dynamic Analysis uploads.
+- `Selenium IDE .side`: keeps recorded internal wait steps as `pause`. Use this if your Selenium IDE environment rejects `waitForPageToLoad`.
 
-Capture flows natively in your browser.
+Both modes keep the same login flow structure:
 
-1.  Navigate to `chrome://extensions`.
-2.  Enable **Developer mode** (top right).
-3.  Click **Load unpacked** and select the `chrome-extension/` folder from this repository.
-4.  Open your target application in Chrome.
-5.  Launch the extension popup and click **Start Recording**.
-6.  Perform your login/crawl steps and click **Export .side** when finished.
+1. `open`
+2. page wait
+3. `type` username, password, OTP, TOTP, or text CAPTCHA values
+4. `click` or `submit`
+5. page wait
+6. `waitForElementPresent` or `verifyTextPresent`
 
-> [!TIP]
-> For local `file://` pages, ensure you enable "Allow access to file URLs" in the extension settings.
+## Chrome Extension
 
-### 💻 Electron Desktop App
+1. Open `chrome://extensions`.
+2. Turn on Developer mode.
+3. Click Load unpacked and select `chrome-extension/`.
+4. Open the target application.
+5. Start recording from the extension popup.
+6. Run the login flow.
+7. Export either `Veracode .side` or `Selenium IDE .side`.
 
-A full-featured IDE for recording, importing, and editing Veracode-compatible scripts.
+For local `file://` pages, enable Allow access to file URLs in the extension settings.
 
-#### Prerequisites
-- [Node.js](https://nodejs.org/) (LTS recommended)
+## Electron Desktop App
 
-#### Quick Start (Windows)
-Double-click `open-electron-app.cmd` to automatically install dependencies and launch the app.
+Double-click `open-electron-app.cmd` on Windows to start the desktop app. The launcher can bootstrap the local Electron dependency if Node is already available.
 
-#### Manual Setup
-1.  Open a terminal in the `electron-app/` directory.
-2.  Install dependencies: `npm install`
-3.  Start the application: `npm start`
+If you prefer manual startup:
 
----
+1. Open a terminal in `electron-app/`.
+2. Run `npm install`.
+3. Run `npm start`.
 
-## 📂 Project Structure
+## Best Practices
 
-- `chrome-extension/`: Source code for the browser-based recorder.
-- `electron-app/`: Source code for the desktop editor and embedded recorder.
-- `shared/`: Shared logic for SIDE export and DOM utilities used by both components.
-
----
-
-## ⚠️ Limits & Best Practices
-
-- **Complex SPAs**: Single Page Applications with unconventional transitions may require manual `waitFor` commands.
-- **SSO/Multi-Window**: Specialized authentication flows (e.g., pop-up based SSO) are best recorded using the Chrome Extension.
-- **Validation**: We recommend adding a final `assertText` or `waitForElementPresent` command in the Electron editor to verify successful login states.
-
----
-
-## 🤝 Contributing
-
-This project is designed for security professionals and developers working with Veracode Dynamic Analysis. Contributions and feedback are welcome!
+- Prefer targets that resolve to `id=...` whenever the page exposes stable IDs.
+- End login scripts with `waitForElementPresent` or `verifyTextPresent` so Veracode can confirm the signed-in state.
+- Re-record if the target app uses a different login page for username and password so the `Next` click is captured as a separate step.
+- Complex SSO, multi-window auth, and widget CAPTCHAs may still need manual review after recording.

@@ -9,6 +9,7 @@ var state = {
     pendingNavigation: false,
     lastKnownUrl: "",
     manualNavigationPending: false,
+    authVerificationPending: false,
     lastActionAt: 0,
     lastClickSignature: ""
   }
@@ -24,7 +25,8 @@ var elements = {
   stopRecording: document.getElementById("stopRecording"),
   newRecording: document.getElementById("newRecording"),
   importFile: document.getElementById("importFile"),
-  exportSide: document.getElementById("exportSide"),
+  exportVeracodeSide: document.getElementById("exportVeracodeSide"),
+  exportSeleniumIdeSide: document.getElementById("exportSeleniumIdeSide"),
   exportJson: document.getElementById("exportJson"),
   addCommand: document.getElementById("addCommand"),
   commandRows: document.getElementById("commandRows"),
@@ -90,7 +92,7 @@ function appendCommand(commandInput) {
     lastCommand.command === command.command &&
     lastCommand.target === command.target &&
     lastCommand.value === command.value &&
-    command.command === "waitForPageToLoad"
+    (command.command === "waitForPageToLoad" || command.command === "pause")
   ) {
     return;
   } else {
@@ -123,8 +125,8 @@ function ensureOpenSequence(url) {
       targets: []
     });
     appendCommand({
-      command: "waitForPageToLoad",
-      target: VeracodeSide.DEFAULT_WAIT_TIMEOUT_MS,
+      command: "pause",
+      target: VeracodeSide.DEFAULT_PAUSE_MS,
       value: "",
       targets: []
     });
@@ -135,7 +137,15 @@ function ensureOpenSequence(url) {
 
 function setStatus(message) {
   var summary = VeracodeSide.summarize(state.recording);
-  elements.statusText.textContent = message + " " + summary.totalCommands + " commands in the current recording.";
+  var exportIssues = VeracodeSide.collectExportIssues(state.recording, {
+    waitMode: VeracodeSide.EXPORT_WAIT_MODE_VERACODE
+  });
+  elements.statusText.textContent =
+    message +
+    " " +
+    summary.totalCommands +
+    " commands in the current recording." +
+    (exportIssues.length ? " Veracode export check: " + exportIssues[0] : "");
 }
 
 function renderCommandRows() {
@@ -207,6 +217,7 @@ function resetRecording() {
   state.runtime.pendingNavigation = false;
   state.runtime.lastKnownUrl = "";
   state.runtime.manualNavigationPending = false;
+  state.runtime.authVerificationPending = false;
   render();
 }
 
@@ -232,22 +243,147 @@ async function importFile() {
 async function saveRecording(format) {
   updateRecordingMeta();
 
-  var content = format === "side"
-    ? VeracodeSide.exportSideText(state.recording)
-    : VeracodeSide.exportRecordingText(state.recording);
+  var content = "";
 
-  var filename = format === "side" ? "veracode-recording.side" : "veracode-recording.json";
+  try {
+    content = format === "side-veracode"
+      ? VeracodeSide.exportSideText(state.recording, {
+          waitMode: VeracodeSide.EXPORT_WAIT_MODE_VERACODE
+        })
+      : format === "side-selenium-ide"
+      ? VeracodeSide.exportSideText(state.recording, {
+          waitMode: VeracodeSide.EXPORT_WAIT_MODE_SELENIUM_IDE
+        })
+      : VeracodeSide.exportRecordingText(state.recording);
+  } catch (error) {
+    setStatus("Export blocked: " + error.message);
+    return;
+  }
+
+  var filename = format === "side-veracode"
+    ? "veracode-recording-veracode.side"
+    : format === "side-selenium-ide"
+    ? "veracode-recording-selenium-ide.side"
+    : "veracode-recording.json";
 
   var result = await window.recorderApp.saveFile({
     defaultPath: filename,
     content: content,
-    filters: format === "side"
+    filters: format === "side-veracode" || format === "side-selenium-ide"
       ? [{ name: "SIDE Files", extensions: ["side"] }]
       : [{ name: "JSON Files", extensions: ["json"] }]
   });
 
   if (result) {
     setStatus("Saved " + result.filePath + ".");
+  }
+}
+
+function hasAuthField(payload) {
+  var candidates = [String(payload && payload.target || "").toLowerCase()];
+  (Array.isArray(payload && payload.targets) ? payload.targets : []).forEach(function (candidate) {
+    if (Array.isArray(candidate) && candidate[0]) {
+      candidates.push(String(candidate[0]).toLowerCase());
+    }
+  });
+
+  return candidates.some(function (value) {
+    return /user|email|login|pass|password|otp|totp|captcha|code|pin|signin|sign-in/.test(value);
+  });
+}
+
+async function collectLoginVerification() {
+  if (!elements.recorderView || !elements.recorderView.executeJavaScript) {
+    return false;
+  }
+
+  var script = `
+    (() => {
+      const buildLocatorBundle = (element) => {
+        if (!element || element.nodeType !== Node.ELEMENT_NODE) {
+          return null;
+        }
+        const targets = [];
+        let primary = "";
+        if (element.id) {
+          primary = "id=" + element.id;
+          targets.push([primary, "id"]);
+        }
+        if (element.name) {
+          targets.push(["name=" + element.name, "name"]);
+          if (!primary) {
+            primary = "name=" + element.name;
+          }
+        }
+        if (!primary) {
+          return null;
+        }
+        return { primary, targets };
+      };
+
+      const pageText = document.body && document.body.innerText ? document.body.innerText : "";
+      const textCandidates = [
+        "Sign Off",
+        "Sign Out",
+        "Logout",
+        "Log Out",
+        "Welcome",
+        "My Account",
+        "Account Summary",
+        "Transfer Funds",
+        "View Account Summary"
+      ].filter((candidate) => pageText.indexOf(candidate) >= 0);
+
+      if (textCandidates.length) {
+        return {
+          command: "verifyTextPresent",
+          target: textCandidates[0],
+          targets: [[textCandidates[0], "text"]],
+          value: ""
+        };
+      }
+
+      const selectors = [
+        "a[href*='logout']",
+        "a[href*='signoff']",
+        "a[href*='signout']",
+        "form[action*='logout']",
+        "[id*='logout']",
+        "[name*='logout']"
+      ];
+
+      for (let index = 0; index < selectors.length; index += 1) {
+        const element = document.querySelector(selectors[index]);
+        const locator = buildLocatorBundle(element);
+        if (locator) {
+          return {
+            command: "waitForElementPresent",
+            target: locator.primary,
+            targets: locator.targets,
+            value: ""
+          };
+        }
+      }
+
+      return null;
+    })();
+  `;
+
+  try {
+    var response = await elements.recorderView.executeJavaScript(script);
+    if (!response || !response.command) {
+      return false;
+    }
+
+    appendCommand({
+      command: response.command,
+      target: response.target,
+      targets: response.targets,
+      value: response.value
+    });
+    return true;
+  } catch (_error) {
+    return false;
   }
 }
 
@@ -281,6 +417,10 @@ function handleWebviewRecorderEvent(payload) {
 
   if (payload.expectsNavigation) {
     state.runtime.pendingNavigation = true;
+  }
+
+  if (hasAuthField(payload)) {
+    state.runtime.authVerificationPending = true;
   }
 
   render();
@@ -548,6 +688,9 @@ function installFallbackRecorder() {
         }
         Array.prototype.forEach.call(form.elements, (element) => recordControlState(element));
       };
+      const flushDocumentState = () => {
+        Array.prototype.forEach.call(document.querySelectorAll("input, textarea, select"), (element) => recordControlState(element));
+      };
       const scheduleTextCapture = (element) => {
         if (!isTextInput(element)) {
           return;
@@ -576,6 +719,7 @@ function installFallbackRecorder() {
       }, true);
       document.addEventListener("blur", (event) => scheduleTextCapture(event.target), true);
       document.addEventListener("mousedown", (event) => {
+        flushDocumentState();
         const clickable = findClickableTarget(event.target);
         if (!clickable) {
           return;
@@ -599,7 +743,15 @@ function installFallbackRecorder() {
           expectsNavigation: anchorTriggersNavigation(clickable) || isSubmitControl(clickable)
         });
       }, true);
+      document.addEventListener("click", () => {
+        if (document.activeElement && isTextInput(document.activeElement)) {
+          recordTextEntry(document.activeElement);
+        }
+      }, true);
       document.addEventListener("submit", (event) => {
+        if (document.activeElement && isTextInput(document.activeElement)) {
+          recordTextEntry(document.activeElement);
+        }
         const form = event.target;
         flushFormState(form);
         const locator = buildLocatorBundle(form);
@@ -613,6 +765,9 @@ function installFallbackRecorder() {
           value: "",
           expectsNavigation: true
         });
+      }, true);
+      window.addEventListener("beforeunload", () => {
+        flushDocumentState();
       }, true);
     })();
   `;
@@ -669,28 +824,40 @@ elements.recorderView.addEventListener("did-stop-loading", function () {
       value: "",
       targets: []
     });
-    appendCommand({
-      command: "waitForPageToLoad",
-      target: VeracodeSide.DEFAULT_WAIT_TIMEOUT_MS,
-      value: "",
-      targets: []
-    });
+      appendCommand({
+        command: "pause",
+        target: VeracodeSide.DEFAULT_PAUSE_MS,
+        value: "",
+        targets: []
+      });
     state.runtime.manualNavigationPending = false;
     state.runtime.pendingNavigation = false;
     state.runtime.lastKnownUrl = currentUrl;
+    if (state.runtime.authVerificationPending) {
+      collectLoginVerification().then(function () {
+        state.runtime.authVerificationPending = false;
+        render();
+      });
+    }
     render();
     return;
   }
 
   if (state.runtime.pendingNavigation) {
     appendCommand({
-      command: "waitForPageToLoad",
-      target: VeracodeSide.DEFAULT_WAIT_TIMEOUT_MS,
+      command: "pause",
+      target: VeracodeSide.DEFAULT_PAUSE_MS,
       value: "",
       targets: []
     });
     state.runtime.pendingNavigation = false;
     state.runtime.lastKnownUrl = currentUrl;
+    if (state.runtime.authVerificationPending) {
+      collectLoginVerification().then(function () {
+        state.runtime.authVerificationPending = false;
+        render();
+      });
+    }
     render();
     return;
   }
@@ -703,12 +870,18 @@ elements.recorderView.addEventListener("did-stop-loading", function () {
       targets: []
     });
     appendCommand({
-      command: "waitForPageToLoad",
-      target: VeracodeSide.DEFAULT_WAIT_TIMEOUT_MS,
+      command: "pause",
+      target: VeracodeSide.DEFAULT_PAUSE_MS,
       value: "",
       targets: []
     });
     state.runtime.lastKnownUrl = currentUrl;
+    if (state.runtime.authVerificationPending) {
+      collectLoginVerification().then(function () {
+        state.runtime.authVerificationPending = false;
+        render();
+      });
+    }
     render();
   }
 });
@@ -772,8 +945,11 @@ elements.startRecording.addEventListener("click", startInAppRecording);
 elements.stopRecording.addEventListener("click", stopInAppRecording);
 elements.newRecording.addEventListener("click", resetRecording);
 elements.importFile.addEventListener("click", importFile);
-elements.exportSide.addEventListener("click", function () {
-  saveRecording("side");
+elements.exportVeracodeSide.addEventListener("click", function () {
+  saveRecording("side-veracode");
+});
+elements.exportSeleniumIdeSide.addEventListener("click", function () {
+  saveRecording("side-selenium-ide");
 });
 elements.exportJson.addEventListener("click", function () {
   saveRecording("json");
