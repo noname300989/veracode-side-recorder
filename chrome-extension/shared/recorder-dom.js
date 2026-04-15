@@ -245,6 +245,8 @@
     }
 
     var element = startNode.nodeType === Node.TEXT_NODE ? startNode.parentElement : startNode;
+    var originalElement = element;
+
     while (element && element !== document.body) {
       if (isNativeClickElement(element)) {
         return element;
@@ -252,7 +254,7 @@
       element = element.parentElement;
     }
 
-    return null;
+    return originalElement;
   }
 
   function anchorTriggersNavigation(anchor) {

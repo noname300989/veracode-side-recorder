@@ -4,9 +4,17 @@
   "description": "Electron recorder and editor for Veracode-safe Selenium IDE SIDE files.",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "electron-builder -w"
+  },
+  "build": {
+    "appId": "com.veracode.siderecorder",
+    "win": {
+      "target": "portable"
+    }
   },
   "devDependencies": {
-    "electron": "^37.0.0"
+    "electron": "^37.0.0",
+    "electron-builder": "^24.13.3"
   }
 }
